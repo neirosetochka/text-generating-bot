@@ -3,7 +3,7 @@ from telebot import types
 from model_wrapper import ModelWrapper
 import re
 
-bot = telebot.TeleBot('6815921534:AAGKT_yQydCGTToUn9DTOidxDoV40blPbxE')
+bot = telebot.TeleBot(your_token)
 model_wrapper = ModelWrapper()
 change_str = None
 
