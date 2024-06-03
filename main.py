@@ -3,63 +3,97 @@ from telebot import types
 from model_wrapper import ModelWrapper
 import re
 
-bot = telebot.TeleBot(your_token)
+bot = telebot.TeleBot('6815921534:AAGKT_yQydCGTToUn9DTOidxDoV40blPbxE')
 model_wrapper = ModelWrapper()
-change_str = None
+past_text = None
 
 @bot.message_handler(commands=['start'])
 def start(message):     
-    bot.send_message(message.from_user.id, "Привет! Я Лиса (ударение, кстати, на «и»), созданная специально для курса «Современный NLP. Большие языковые модели» от VK Education ✌😇😺. Напиши /help, чтобы познакомиться с моими возможностями💕.")
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True) #создание новых кнопок
+    btn = types.KeyboardButton('Разбудить меня🐧')
+    markup.add(btn)
+    bot.send_message(message.from_user.id, "Привет! Я Лиса (ударение, кстати, на «и»), LM-модель на основе n-gram для генерации текста ✌😇😺. Я пока еще сплю 😴", reply_markup=markup)
+
 
 @bot.message_handler(commands=['help'])
 def help(message):
     help_message = """Мои команды:
-/start старт бота
-/model выбор модели
-/checkmodel посмотреть, как модель сейчас загружена
-/generate сгенерировать текст по контексту (можно использовать без введения команды)
+/start - запуск бота.
+/help - список всех команд
+/params - посмотреть текущие параметры генерации
+/repeat - повторить генерацию предложения (чтобы искать подходящие параметры)
+temperature = value - установит температуру = value
 """
     bot.send_message(message.from_user.id, help_message)
 
-@bot.message_handler(commands=['model'])
-def model(message):
+def bot_generate(message, text):
 
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1) #создание новых кнопок
-    btn1 = types.KeyboardButton('StatLM')
-    btn2 = types.KeyboardButton('GPT')
-    btn3 = types.KeyboardButton('Llama')
-    markup.add(btn1, btn2, btn3)
-    bot.send_message(message.from_user.id, "Выбери модель генерации текста 👀", reply_markup=markup)
+    if not model_wrapper.model.tokenizer.text_preprocess(text):
+            bot.send_message(message.from_user.id, 'Нужен хотя бы один русский символ💔')
+
+    else:
+        status, result = model_wrapper.generate(text)
+        if status:
+            bot.send_message(message.from_user.id, result)
+        else:
+            bot.send_message(message.from_user.id, 'Ошибка генерации😱')
+
+
+@bot.message_handler(commands=['repeat'])
+def repeat(message):
+    if past_text is None:
+        bot.send_message(message.from_user.id, 'Мне пока нечего повторять.')
+    else:
+        bot_generate(message, past_text)
+
+@bot.message_handler(commands=['params'])
+def params(message):
+    config = model_wrapper.generate_kwargs['generation_config']
+    temperature = config.temperature
+    sample_top_p = config.sample_top_p
+    bot.send_message(message.from_user.id, 'temperature = ' + str(temperature) + ', sample_top_p =' + str(sample_top_p) + '.')
         
 @bot.message_handler(content_types=['text'])
 def get_text_messages(message):
 
     
-    if message.text in ['StatLM', 'GPT', 'Llama']:
+    if message.text == 'Разбудить меня🐧':
 
-        status, result = model_wrapper.load(message.text)
+        status = model_wrapper.load('StatLM')
         if status:
-            bot.send_message(message.from_user.id, "Подгружено")
+            bot_message = "Я проснулась 💃🎶💃"
+            s1 = ".\nЕсли хочешь поменять параметры генерации (temperature/sample_top_p), напиши так: «название_параметра = значение»🍒.\nЕсли хочешь узнать текущее значение параметров, напиши /params."
+            s2 = '\nЕсли хочешь повторить прошлую генерацию, напиши /repeat.'
+            bot_message += s1 + s2
+            bot.send_message(message.from_user.id, bot_message)
         else:
-            bot.send_message(message.from_user.id, "Что-то не хочет подгружаться :(")    
+            bot.send_message(message.from_user.id, "Что-то не хочу просыпаться, такие сны приятные... 😭😭😭")   
     
-    elif message.text in ['Поменять temperature', 'Поменять sample_top_p']:
-
-        bot.send_message(message.from_user.id, "Жду новое значение :)")
-        change_str = message.text.split()[1]
-    
-    elif re.match(r'^-?\d+(?:\.\d+)$', message.text):
-        value = float(message.text)
-        model_wrapper.change_kwargs(value, change_str)
+    elif 'temperature' in message.text or 'sample_top_p' in message.text:
+        value = message.text.split()[2]
+        success = False
+        if re.match(r'\d+.\d+', value):
+            value = float(value)
+            success = True
+        elif re.match(r'\d+,\d+', value):
+            value = float(value.replace(',', '.'))
+            success = True
+        elif re.match(r'\d+(.\d+){0,1}e-{0,1}\d+', value):
+            v0, v1 = [float(x) for x in value.split('e')]
+            value = v0 * 10 ** v1
+            success = True
+        
+        if success:
+            result = model_wrapper.change_kwargs(value, message.text.split()[0])
+            if result:
+                bot.send_message(message.from_user.id, "Значение изменено😇")
+            else:
+                bot.send_message(message.from_user.id, "Не знаю такой параметр😥")
+        else:
+            bot.send_message(message.from_user.id, "Что-то пошло не так😔")
 
     else:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1) #создание новых кнопок
-        btn1 = types.KeyboardButton('Поменять temperature')
-        btn2 = types.KeyboardButton('Поменять sample_top_p')
-        markup.add(btn1, btn2)
-        status, result = model_wrapper.generate(message.text)
-
-        if status:
-            bot.send_message(message.from_user.id, result, reply_markup=markup)
+        past_text = message.text + '\n##'
+        bot_generate(message, message.text)
         
 bot.polling(none_stop=True, interval=0) #обязательная для работы бота часть
