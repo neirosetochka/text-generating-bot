@@ -1,6 +1,5 @@
 import traceback
 from typing import List, Dict, Optional, Iterable, Tuple
-#import gpt_lm
 from stat_lm.stat_lm import construct_model as stat_construct_model
 
 class ModelWrapper:
@@ -16,31 +15,33 @@ class ModelWrapper:
         self.current_model_name = None
         self.generate_kwargs = None
 
-    def change_kwargs(self, value, change_str: str):
-        if change_str == 'temperature':
-            self.generate_kwargs['generation_config'].temperature = value
-        if change_str == 'sample_top_p':
-            self.generate_kwargs['generation_config'].sample_top_p = value
+    def change_kwargs(self, value, change_str: str) -> bool:
 
-    def load(self, model_name: str) -> Tuple[bool, str]:
+        if self.current_model_name == 'StatLM':
+            if change_str == 'temperature':
+                self.generate_kwargs['generation_config'].temperature = value
+                return True
+            if change_str == 'sample_top_p':
+                self.generate_kwargs['generation_config'].sample_top_p = value
+                return True
+            return False
+        return False
+
+    def load(self, model_name: str) -> bool:
         """ Load model by model_name. Return load status and error message. True if success """
         try:
-            if model_name in ['StatLM', 'GPT', 'Llama']:
-                self.current_model_name = model_name
 
             if model_name == 'StatLM':
+                self.current_model_name = 'StatLM'
                 self.model, self.generate_kwargs = stat_construct_model()
-            #elif model_name == 'GPT':
-               #self.model, self.generate_kwargs = gpt_lm.construct_model()
-            #else:
-                #return False, f"Модель {model_name} еще не поддерживается"
+
         except Exception as e:
             print("TRACEBACK")
             print(traceback.format_exc())
             print("*" * 20)
             return False, f"Error while loading model {model_name}: {e}"
 
-        return True, ""
+        return True
 
 
     def generate(self, input_text: str) -> Tuple[bool, str]:
