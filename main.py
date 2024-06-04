@@ -93,7 +93,8 @@ def get_text_messages(message):
             bot.send_message(message.from_user.id, "Что-то пошло не так😔")
 
     else:
-        past_text = message.text + '\n##'
+        global past_text
+        past_text = message.text + '\n'
         bot_generate(message, message.text)
         
-bot.polling(none_stop=True, interval=0) #обязательная для работы бота часть
+bot.polling(none_stop=True, interval=0)
